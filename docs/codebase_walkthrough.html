@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Credit Scoring Framework — Codebase Walkthrough</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: #1a1a1a;
+    background: #fff;
+    padding: 40px 60px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 22pt;
+    color: #0a2d5e;
+    border-bottom: 3px solid #0a2d5e;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: #555;
+    font-size: 10pt;
+    margin-bottom: 30px;
+  }
+
+  h2 {
+    font-size: 15pt;
+    color: #0a2d5e;
+    margin-top: 36px;
+    margin-bottom: 10px;
+    border-left: 5px solid #2176c7;
+    padding-left: 12px;
+  }
+
+  h3 {
+    font-size: 12pt;
+    color: #1a4a8a;
+    margin-top: 22px;
+    margin-bottom: 8px;
+  }
+
+  h4 {
+    font-size: 11pt;
+    color: #333;
+    margin-top: 16px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    margin-bottom: 10px;
+  }
+
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+    background: #f0f4f8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #c0392b;
+  }
+
+  pre {
+    background: #1e2730;
+    color: #e8edf2;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9pt;
+    padding: 14px 18px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 10px 0 14px 0;
+    line-height: 1.5;
+    border-left: 4px solid #2176c7;
+  }
+
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0 16px 0;
+    font-size: 10pt;
+  }
+
+  th {
+    background: #0a2d5e;
+    color: #fff;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #dde3ec;
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: #f5f8fc; }
+
+  .label {
+    display: inline-block;
+    font-weight: 700;
+    color: #0a2d5e;
+    min-width: 50px;
+  }
+
+  .what  { color: #1a5c1a; font-weight: 700; }
+  .why   { color: #7a4a00; font-weight: 700; }
+  .how   { color: #1a1a7a; font-weight: 700; }
+  .issue { color: #c0392b; font-weight: 700; }
+
+  .annotation-block {
+    background: #f8fafd;
+    border: 1px solid #cdd8e8;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin: 8px 0 14px 0;
+  }
+
+  .annotation-block p { margin-bottom: 6px; }
+  .annotation-block p:last-child { margin-bottom: 0; }
+
+  .formula {
+    background: #fff8e8;
+    border: 1px solid #f0c040;
+    border-radius: 5px;
+    padding: 8px 14px;
+    font-family: 'Consolas', monospace;
+    font-size: 9.5pt;
+    margin: 8px 0;
+  }
+
+  .toc {
+    background: #f0f5fb;
+    border: 1px solid #cdd8e8;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 30px;
+  }
+
+  .toc h3 { margin-top: 0; color: #0a2d5e; }
+  .toc ol { margin-left: 20px; }
+  .toc li { margin-bottom: 4px; }
+
+  hr {
+    border: none;
+    border-top: 1px solid #dde3ec;
+    margin: 28px 0;
+  }
+
+  ul { margin-left: 22px; margin-bottom: 10px; }
+  ol { margin-left: 22px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+
+  .page-break { page-break-before: always; }
+
+  @media print {
+    body { padding: 20px 30px; }
+    pre  { white-space: pre-wrap; word-break: break-word; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Credit Scoring Framework</h1>
+<div class="subtitle">Line-by-Line Codebase Walkthrough &nbsp;|&nbsp; Generated 2026-03-19</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li>scorecard_builder.py — Core scorecard logic</li>
+    <li>monitoring.py — Performance metrics</li>
+    <li>reject_inference.py — Reject inference engine</li>
+    <li>recalibration.py — Model recalibration</li>
+    <li>main.py — Entry point &amp; orchestration</li>
+    <li>Architecture summary</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>1. scorecard_builder.py</h2>
+
+<h3>Lines 1–3 — Module header &amp; debug print</h3>
+<pre><code># Scorecard Builder
+# Includes WOE, binning, logistic regression, score scaling
+print("Scorecard Builder Module")</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> A comment describing the module, followed by a <code>print</code> statement.</p>
+  <p><span class="why">Why:</span> The print was added during early development to confirm the module was being imported correctly.</p>
+  <p><span class="how">How:</span> When Python imports this file, all top-level code runs immediately — so this print fires the moment you do <code>from scorecard_builder import ScorecardBuilder</code>.</p>
+  <p><span class="issue">Issue:</span> This is debug noise. In production it should be removed or replaced with <code>logging.getLogger(__name__)</code>.</p>
+</div>
+
+<h3>Lines 5–8 — Imports</h3>
+<pre><code>import pandas as pd
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from optbinning import OptimalBinning</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Brings in four external libraries.</p>
+  <table>
+    <tr><th>Import</th><th>What it provides</th><th>Why it's needed here</th></tr>
+    <tr><td><code>pandas</code></td><td>DataFrames, tabular data manipulation</td><td>Holding and slicing the input dataset</td></tr>
+    <tr><td><code>numpy</code></td><td>Fast array math</td><td>Log/dot product math in the scoring formula</td></tr>
+    <tr><td><code>LogisticRegression</code></td><td>Linear classification model</td><td>The actual credit risk model</td></tr>
+    <tr><td><code>OptimalBinning</code></td><td>Supervised binning + WOE/IV calculation</td><td>Industry-standard binning for scorecards</td></tr>
+  </table>
+  <p><span class="how">How:</span> Python's import system loads these from installed packages in the <code>.venv</code> environment.</p>
+</div>
+
+<h3>Lines 10–15 — Class definition &amp; constructor</h3>
+<pre><code>class ScorecardBuilder:
+
+    def __init__(self, target):
+        self.target = target
+        self.model = None
+        self.binning_models = {}</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Defines the <code>ScorecardBuilder</code> class with three instance variables.</p>
+  <table>
+    <tr><th>Variable</th><th>Initial value</th><th>Purpose</th></tr>
+    <tr><td><code>self.target</code></td><td>string (e.g. <code>"default_flag"</code>)</td><td>Name of the column holding 0/1 default labels</td></tr>
+    <tr><td><code>self.model</code></td><td><code>None</code></td><td>Will hold the fitted LogisticRegression after <code>train()</code></td></tr>
+    <tr><td><code>self.binning_models</code></td><td><code>{}</code> (empty dict)</td><td>Will hold one OptimalBinning object per feature after <code>transform_woe()</code></td></tr>
+  </table>
+  <p><span class="why">Why:</span> Using a class lets the scorecard carry its state between steps. You train once, then call <code>score()</code> repeatedly on new data — <code>self.model</code> and <code>self.binning_models</code> persist across those calls.</p>
+  <p><span class="how">How:</span> <code>__init__</code> is Python's constructor. It runs automatically when you write <code>builder = ScorecardBuilder(target="default_flag")</code>.</p>
+</div>
+
+<h3>Lines 17–20 — <code>calculate_iv()</code></h3>
+<pre><code>def calculate_iv(self, df, feature):
+    optb = OptimalBinning(name=feature, dtype="numerical")
+    optb.fit(df[feature], df[self.target])
+    return optb.binning_table.build()["IV"].sum()</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Computes the <strong>Information Value (IV)</strong> of a single feature.</p>
+  <p><span class="why">Why:</span> IV measures how well a variable separates good borrowers from bad ones. It is the standard feature-selection metric in credit scoring.</p>
+  <table>
+    <tr><th>IV range</th><th>Predictive power</th></tr>
+    <tr><td>&lt; 0.02</td><td>Useless</td></tr>
+    <tr><td>0.02 – 0.1</td><td>Weak</td></tr>
+    <tr><td>0.1 – 0.3</td><td>Medium</td></tr>
+    <tr><td>&gt; 0.3</td><td>Strong</td></tr>
+  </table>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>OptimalBinning(name=feature, dtype="numerical")</code> — Creates a binning object. Applies supervised monotone optimal binning to find best cut points.</li>
+    <li><code>optb.fit(df[feature], df[self.target])</code> — Feeds feature values and 0/1 labels to find optimal bin boundaries.</li>
+    <li><code>optb.binning_table.build()</code> — Produces a per-bin summary with WoE, IV columns.</li>
+    <li><code>["IV"].sum()</code> — Sums per-bin IV contributions to get total feature IV.</li>
+  </ul>
+  <div class="formula">IV_bin = (% Goods in bin − % Bads in bin) × ln(% Goods / % Bads)<br>Total IV = Σ IV_bin across all bins</div>
+</div>
+
+<h3>Lines 22–33 — <code>select_features()</code></h3>
+<pre><code>def select_features(self, df, threshold=0.02):
+    iv_dict = {}
+    for col in df.columns:
+        if col == self.target:
+            continue
+        try:
+            iv_dict[col] = self.calculate_iv(df, col)
+        except:
+            continue
+
+    iv_df = pd.DataFrame.from_dict(iv_dict, orient="index", columns=["IV"])
+    return iv_df[iv_df["IV"] > threshold].index.tolist()</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Loops over every column, calculates IV, and returns only those with IV &gt; <code>threshold</code> (default 0.02).</p>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>iv_dict = {}</code> — Accumulator: <code>{feature_name: iv_value}</code>.</li>
+    <li><code>if col == self.target: continue</code> — Skips the target column (can't use outcome as predictor).</li>
+    <li><code>try / except: continue</code> — Silently skips features that cause errors (constant column, all-null, etc.).</li>
+    <li><code>pd.DataFrame.from_dict(iv_dict, orient="index")</code> — Converts dict to DataFrame with feature names as index.</li>
+    <li><code>iv_df[iv_df["IV"] &gt; threshold].index.tolist()</code> — Returns names of features that pass the IV threshold.</li>
+  </ul>
+  <p><span class="issue">Issue:</span> Bare <code>except:</code> catches everything including <code>KeyboardInterrupt</code>. Should be <code>except Exception:</code> at minimum, and should log the skipped feature name for debugging.</p>
+</div>
+
+<h3>Lines 35–45 — <code>transform_woe()</code></h3>
+<pre><code>def transform_woe(self, df, features):
+    woe_df = pd.DataFrame()
+
+    for col in features:
+        optb = OptimalBinning(name=col, dtype="numerical")
+        optb.fit(df[col], df[self.target])
+        self.binning_models[col] = optb
+        woe_df[col] = optb.transform(df[col], metric="woe")
+
+    woe_df[self.target] = df[self.target]
+    return woe_df</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Replaces raw feature values with their <strong>Weight of Evidence (WOE)</strong> equivalents, and stores the fitted binning objects.</p>
+  <p><span class="why">Why WOE?</span></p>
+  <ul>
+    <li>Handles non-linearity — each bin maps to a single WOE value</li>
+    <li>Handles outliers — extreme values fall into edge bins</li>
+    <li>Makes logistic regression coefficients more interpretable</li>
+    <li>Encodes the relationship between the feature and target directly</li>
+  </ul>
+  <div class="formula">WOE = ln(Distribution of Goods / Distribution of Bads)<br>
+  = ln(% of total Goods in bin / % of total Bads in bin)<br><br>
+  Positive WOE bin → more goods than bads → lower credit risk<br>
+  Negative WOE bin → more bads than goods → higher credit risk</div>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>self.binning_models[col] = optb</code> — <strong>Critical:</strong> stores the fitted binner so it can be applied to new data at scoring time.</li>
+    <li><code>optb.transform(df[col], metric="woe")</code> — Replaces raw values with each value's bin WOE score.</li>
+    <li><code>woe_df[self.target] = df[self.target]</code> — Carries the target column through for immediate model training.</li>
+  </ul>
+  <p><span class="issue">Issue:</span> Re-fits OptimalBinning on the same data used for training — mild data leakage. Binning should be fit on a training set and only applied (<code>.transform()</code>) to validation/test sets.</p>
+</div>
+
+<h3>Lines 47–57 — <code>train()</code></h3>
+<pre><code>def train(self, df):
+    features = self.select_features(df)
+    woe_df = self.transform_woe(df, features)
+
+    X = woe_df[features]
+    y = woe_df[self.target]
+
+    self.model = LogisticRegression(max_iter=1000)
+    self.model.fit(X, y)
+
+    return self.model, features</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Orchestrates the full training pipeline: feature selection → WOE transformation → logistic regression fitting.</p>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>select_features(df)</code> → list of features with IV &gt; 0.02</li>
+    <li><code>transform_woe(df, features)</code> → WOE DataFrame + saves binning models</li>
+    <li><code>X = woe_df[features]</code> — feature matrix (WOE-transformed)</li>
+    <li><code>y = woe_df[self.target]</code> — target vector (0 = good, 1 = bad)</li>
+    <li><code>LogisticRegression(max_iter=1000)</code> — max_iter increased from default 100 because WOE data sometimes takes more iterations to converge</li>
+    <li><code>return self.model, features</code> — caller needs both to know which features the model expects</li>
+  </ul>
+  <p><span class="issue">Issue:</span> No train/test split. Model is evaluated on training data, which overstates performance.</p>
+</div>
+
+<h3>Lines 59–65 — <code>score()</code></h3>
+<pre><code>def score(self, X, pdo=50, base_score=600, base_odds=50):
+    factor = pdo / np.log(2)
+    offset = base_score - factor * np.log(base_odds)
+
+    log_odds = self.model.intercept_[0] + np.dot(X, self.model.coef_[0])
+    score = offset + factor * log_odds
+
+    return score</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Converts the logistic regression's log-odds output into a credit score on a human-readable scale (e.g. 300–850) using the industry-standard <strong>PDO (Points to Double the Odds)</strong> convention.</p>
+  <p><span class="why">Why:</span></p>
+  <ul>
+    <li>At <code>base_score</code> (600), the odds of being good are <code>base_odds</code> (50:1)</li>
+    <li>Every <code>pdo</code> (50) additional points doubles the odds of being good</li>
+  </ul>
+  <div class="formula">factor = PDO / ln(2)<br>
+offset = base_score − factor × ln(base_odds)<br>
+score  = offset + factor × log_odds<br><br>
+An increase in log_odds of ln(2) (doubling the odds) adds exactly PDO points to the score.</div>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>factor = pdo / np.log(2)</code> — Scaling multiplier. With PDO=50, factor ≈ 72.1</li>
+    <li><code>offset = base_score - factor * np.log(base_odds)</code> — Pins the scale: at log-odds = ln(50), score = 600</li>
+    <li><code>self.model.intercept_[0] + np.dot(X, self.model.coef_[0])</code> — Manually computes log-odds: bias term + Σ(weight × WOE)</li>
+    <li><code>score = offset + factor * log_odds</code> — Applies PDO scaling to produce the final credit score</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>2. monitoring.py</h2>
+
+<h3>Lines 1–6 — Header &amp; imports</h3>
+<pre><code># Monitoring Engine
+# KS, PSI, lender metrics
+print("Monitoring Module")
+
+import numpy as np
+import pandas as pd</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Same debug-print pattern as scorecard_builder.py. Only <code>numpy</code> and <code>pandas</code> needed — no ML models, just statistics.</p>
+</div>
+
+<h3>Lines 8–15 — <code>calculate_ks()</code></h3>
+<pre><code>def calculate_ks(df, score_col, target_col):
+    df = df.sort_values(score_col)
+
+    df["cum_bad"] = df[target_col].cumsum() / df[target_col].sum()
+    df["cum_good"] = ((1 - df[target_col]).cumsum()) / (1 - df[target_col]).sum()
+
+    ks = np.max(np.abs(df["cum_bad"] - df["cum_good"]))
+    return ks</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Calculates the <strong>Kolmogorov-Smirnov (KS) statistic</strong> — the primary performance metric for credit scorecards, measuring how well the score separates defaulters from non-defaulters.</p>
+  <table>
+    <tr><th>KS</th><th>Interpretation</th></tr>
+    <tr><td>&lt; 0.20</td><td>Poor</td></tr>
+    <tr><td>0.20 – 0.40</td><td>Acceptable</td></tr>
+    <tr><td>0.40 – 0.60</td><td>Good</td></tr>
+    <tr><td>&gt; 0.60</td><td>Excellent (check for leakage)</td></tr>
+  </table>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>df.sort_values(score_col)</code> — Sorts all applicants lowest to highest score. Essential for cumulative distribution calculation.</li>
+    <li><code>df[target_col].cumsum() / df[target_col].sum()</code> — For each score threshold, what fraction of all bads have been captured? Normalised to [0, 1].</li>
+    <li><code>(1 - df[target_col]).cumsum() / (1 - df[target_col]).sum()</code> — Same idea for goods: flips bads→0 and goods→1, then cumulative fraction captured.</li>
+    <li><code>np.max(np.abs(df["cum_bad"] - df["cum_good"]))</code> — Maximum gap between cumulative bad rate and good rate across all score thresholds. This peak separation is the KS statistic.</li>
+  </ul>
+</div>
+
+<h3>Lines 18–27 — <code>calculate_psi()</code></h3>
+<pre><code>def calculate_psi(expected, actual, bins=10):
+    breakpoints = np.linspace(0, 1, bins + 1)
+
+    expected_percents = np.histogram(expected, bins=breakpoints)[0] / len(expected)
+    actual_percents = np.histogram(actual, bins=breakpoints)[0] / len(actual)
+
+    psi = np.sum((actual_percents - expected_percents) *
+                 np.log((actual_percents + 1e-6) / (expected_percents + 1e-6)))
+
+    return psi</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Calculates the <strong>Population Stability Index (PSI)</strong> — measures how much the score distribution has shifted between two periods (e.g. development vs. current production).</p>
+  <table>
+    <tr><th>PSI</th><th>Interpretation</th></tr>
+    <tr><td>&lt; 0.10</td><td>Stable — no action needed</td></tr>
+    <tr><td>0.10 – 0.25</td><td>Minor shift — monitor</td></tr>
+    <tr><td>&gt; 0.25</td><td>Major shift — investigate, consider retraining</td></tr>
+  </table>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>np.linspace(0, 1, bins + 1)</code> — Creates 11 evenly spaced points → 10 bin edges. Assumes scores/probabilities are normalised to [0, 1].</li>
+    <li><code>np.histogram(...)[0] / len(expected)</code> — Counts per bin, divided by total → proportions summing to 1.</li>
+    <li>PSI formula: <code>Σ (Actual% − Expected%) × ln(Actual% / Expected%)</code> — a symmetric divergence measure based on KL divergence.</li>
+    <li><code>+ 1e-6</code> — Tiny constant prevents <code>log(0) = -∞</code> when any bin is empty.</li>
+  </ul>
+  <p><span class="issue">Issue:</span> Breakpoints are fixed to [0, 1], which only works if inputs are probabilities. Raw credit scores (e.g. 400–750) would need different breakpoints.</p>
+</div>
+
+<h3>Lines 30–46 — <code>lender_metrics()</code></h3>
+<pre><code>def lender_metrics(df):
+    results = []
+
+    for lender in df["lender_id"].unique():
+        temp = df[df["lender_id"] == lender]
+
+        ks = calculate_ks(temp, "score", "target")
+        bad_rate = temp["target"].mean()
+
+        results.append({
+            "lender_id": lender,
+            "ks": ks,
+            "bad_rate": bad_rate,
+            "volume": len(temp)
+        })
+
+    return pd.DataFrame(results)</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Breaks down model performance by lender — useful in multi-lender or marketplace lending platforms.</p>
+  <p><span class="why">Why:</span> A model may perform well overall but poorly for a specific lender whose population is different (different geographies, products, or risk appetite).</p>
+  <p><span class="how">How:</span> Iterates over each distinct lender, filters to their sub-population, computes KS, bad rate, and volume, then returns a tidy summary DataFrame. Bad rate = <code>target.mean()</code> = proportion of defaults.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>3. reject_inference.py</h2>
+
+<h3>Lines 1–7 — Header &amp; imports</h3>
+<pre><code># Reject Inference Engine
+# Parceling, fuzzy, weighting
+print("Reject Inference Module")
+
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression</code></pre>
+<div class="annotation-block">
+  <p>The comment mentions three methods — <em>Parceling, fuzzy, weighting</em> — but only parceling is implemented. The other two are planned future additions.</p>
+</div>
+
+<h3>Lines 9–12 — Class &amp; constructor</h3>
+<pre><code>class RejectInference:
+
+    def __init__(self, features):
+        self.features = features</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Stores the list of feature column names.</p>
+  <p><span class="why">Why:</span> The <code>parceling()</code> method needs to know which columns to use as predictors when training an internal proxy model on approved customers.</p>
+</div>
+
+<h3>Lines 14–32 — <code>parceling()</code></h3>
+<pre><code>def parceling(self, df):
+    approved = df[df["approved"] == 1].copy()
+    rejected = df[df["approved"] == 0].copy()
+
+    model = LogisticRegression(max_iter=1000)
+    model.fit(approved[self.features], approved["target"])
+
+    rejected["pd"] = model.predict_proba(rejected[self.features])[:, 1]
+
+    approved["band"] = pd.qcut(
+        model.predict_proba(approved[self.features])[:, 1], 10, labels=False, duplicates="drop"
+    )
+    rejected["band"] = pd.qcut(rejected["pd"], 10, labels=False, duplicates="drop")
+
+    band_bad_rate = approved.groupby("band")["target"].mean()
+
+    rejected["target"] = rejected["band"].map(band_bad_rate)
+    rejected["target"] = (np.random.rand(len(rejected)) < rejected["target"].fillna(approved["target"].mean())).astype(int)
+
+    return pd.concat([approved, rejected])</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Infers likely outcomes (good/bad) for rejected applicants using the <strong>parceling (banding) method</strong>.</p>
+  <p><span class="why">Why reject inference?</span> A scorecard trained only on approved applicants suffers from <strong>sample selection bias</strong> — rejects were excluded precisely because they looked riskier. Ignoring them means the model never learned from that portion of the population, making it less accurate near the decision boundary.</p>
+  <p><span class="how">How — step by step:</span></p>
+  <ol>
+    <li><code>approved = df[df["approved"] == 1].copy()</code> / <code>rejected = df[df["approved"] == 0].copy()</code> — Splits data. <code>.copy()</code> prevents pandas SettingWithCopyWarning when adding columns.</li>
+    <li><code>model.fit(approved[self.features], approved["target"])</code> — Trains a proxy logistic regression <em>only on approved customers</em> (who have known outcomes). Used purely for the banding step.</li>
+    <li><code>rejected["pd"] = model.predict_proba(rejected[self.features])[:, 1]</code> — Scores rejected applicants using the approved-trained model. <code>[:, 1]</code> takes the probability of default column.</li>
+    <li><code>pd.qcut(..., 10, ...)</code> — Divides applicants into 10 equal-frequency bands (deciles) by predicted default probability. <code>duplicates="drop"</code> handles ties. Applied to both approved and rejected.</li>
+    <li><code>band_bad_rate = approved.groupby("band")["target"].mean()</code> — For each band, computes the observed default rate among approved customers. This is the key lookup table.</li>
+    <li><code>rejected["target"] = rejected["band"].map(band_bad_rate)</code> — Maps each reject's band to the observed bad rate from approved customers in the same band. Gives each reject a <em>probability</em> of default.</li>
+    <li><code>(np.random.rand(len(rejected)) &lt; rejected["target"].fillna(...)).astype(int)</code> — Converts the probability to a concrete 0/1 label via a <strong>Bernoulli draw</strong>. If <code>uniform_random &lt; probability_of_default</code>, assign bad (1), else good (0). This is the "parceling" — probabilistically parceling rejects into good and bad categories. <code>.fillna(approved["target"].mean())</code> handles unmapped bands using the overall bad rate as fallback.</li>
+    <li><code>pd.concat([approved, rejected])</code> — Combines real outcomes (approved) and inferred outcomes (rejected) into one dataset for model retraining.</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>4. recalibration.py</h2>
+
+<h3>Lines 1–6 — Header &amp; imports</h3>
+<pre><code># Auto Recalibration Engine
+# Intercept shift, Platt scaling, isotonic regression
+print("Recalibration Module")
+
+import numpy as np</code></pre>
+<div class="annotation-block">
+  <p>Only <code>numpy</code> needed — pure math, no DataFrames. The comment mentions three methods; only <code>intercept_shift</code> is implemented.</p>
+</div>
+
+<h3>Lines 7–17 — <code>intercept_shift()</code></h3>
+<pre><code>def intercept_shift(df):
+    expected_pd = df["pd"].mean()
+    actual_pd = df["target"].mean()
+
+    adjustment = np.log(actual_pd / (1 - actual_pd)) - np.log(expected_pd / (1 - expected_pd))
+
+    df["log_odds"] = np.log(df["pd"] / (1 - df["pd"]))
+    df["log_odds_adj"] = df["log_odds"] + adjustment
+    df["pd_calibrated"] = 1 / (1 + np.exp(-df["log_odds_adj"]))
+
+    return df</code></pre>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Adjusts the model's predicted probability of default (PD) to match observed reality.</p>
+  <p><span class="why">Why recalibration?</span> Over time, the real-world default rate drifts from what the model predicts. A model built 2 years ago might predict a 5% bad rate, but today's actual rate is 8%. Intercept shift corrects this without full retraining — it slides all predictions up or down by a constant in log-odds space.</p>
+  <p><span class="how">How:</span></p>
+  <ul>
+    <li><code>expected_pd = df["pd"].mean()</code> — Model's average predicted default probability.</li>
+    <li><code>actual_pd = df["target"].mean()</code> — Actual observed default rate in the same population.</li>
+    <li><code>adjustment = log(actual_pd / (1 − actual_pd)) − log(expected_pd / (1 − expected_pd))</code> — Converts both rates to <strong>log-odds</strong>, then takes the difference. This is the exact constant shift needed in log-odds space to align mean prediction with observed rate.</li>
+    <li><code>df["log_odds"] = np.log(df["pd"] / (1 - df["pd"]))</code> — Converts each individual predicted PD back to log-odds.</li>
+    <li><code>df["log_odds_adj"] = df["log_odds"] + adjustment</code> — Adds the constant shift to every applicant's log-odds.</li>
+    <li><code>df["pd_calibrated"] = 1 / (1 + np.exp(-df["log_odds_adj"]))</code> — The <strong>sigmoid function</strong>: converts adjusted log-odds back to a probability in [0, 1]. It is the mathematical inverse of the log-odds function.</li>
+  </ul>
+  <div class="formula">σ(x) = 1 / (1 + e<sup>−x</sup>)</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>5. main.py</h2>
+
+<pre><code>import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+import pandas as pd
+from scorecard_builder import ScorecardBuilder
+from monitoring import calculate_ks
+
+df = pd.read_csv("data/sample_data.csv")
+
+builder = ScorecardBuilder(target="default_flag")
+
+model, features = builder.train(df)
+
+woe_df = builder.transform_woe(df, features)
+
+df["score"] = builder.score(woe_df[features])
+
+ks = calculate_ks(df, "score", "default_flag")
+
+print("KS:", ks)</code></pre>
+
+<h3>Lines 1–5 — Path setup</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Ensures Python can find the modules in the same folder as <code>main.py</code>.</p>
+  <p><span class="why">Why:</span> When running from a different working directory, Python's module search path may not include the project folder. This line prepends it at position 0 (highest priority).</p>
+  <p><span class="how">How:</span> <code>Path(__file__).parent</code> resolves to the directory containing <code>main.py</code>. <code>sys.path.insert(0, ...)</code> puts it first in the search path.</p>
+</div>
+
+<h3>Lines 7–9 — Imports</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Imports pandas and the two things actually used in this script. <code>reject_inference</code> and <code>recalibration</code> are not imported — <code>main.py</code> demonstrates only the core happy-path pipeline.</p>
+</div>
+
+<h3>Line 11 — Load data</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Reads the dataset from a hard-coded relative path.</p>
+  <p><span class="issue">Issue:</span> If run from a different directory, this fails. Better: use <code>Path(__file__).parent / "data" / "sample_data.csv"</code>.</p>
+</div>
+
+<h3>Line 13 — Initialise builder</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Creates a <code>ScorecardBuilder</code> instance, telling it the target column is <code>"default_flag"</code>.</p>
+</div>
+
+<h3>Line 15 — Train</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Runs the full pipeline: IV selection → WOE binning → logistic regression. Returns the fitted model and selected feature names.</p>
+</div>
+
+<h3>Line 17 — Re-apply WOE</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Re-transforms the data to WOE to get values for scoring.</p>
+  <p><span class="issue">Issue:</span> <code>train()</code> internally calls <code>transform_woe()</code> but doesn't return the WOE DataFrame. This line re-applies the transformation — calling <code>OptimalBinning.fit()</code> a second time on the same data. Wasted computation. A cleaner design would have <code>train()</code> return or cache the WOE DataFrame.</p>
+</div>
+
+<h3>Lines 19–23 — Score &amp; evaluate</h3>
+<div class="annotation-block">
+  <p><span class="what">What:</span> Generates credit scores via PDO scaling and computes KS to measure model performance.</p>
+  <p><span class="issue">Issue:</span> In-sample KS (training data = evaluation data), so the number will be optimistic. A proper evaluation would use a held-out test set.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>6. Architecture Summary</h2>
+
+<pre><code>main.py
+  │
+  ├─ ScorecardBuilder.train(df)
+  │     ├─ select_features()   → IV via OptimalBinning → keep IV &gt; 0.02
+  │     └─ transform_woe()     → WOE via OptimalBinning → fit LogisticRegression
+  │
+  ├─ ScorecardBuilder.score()  → PDO scaling → credit scores
+  │
+  └─ calculate_ks()            → sweep score thresholds → max cumulative separation
+
+reject_inference.py  (standalone)
+  └─ RejectInference.parceling()  → proxy model → band mapping → Bernoulli draw
+
+recalibration.py  (standalone)
+  └─ intercept_shift()  → log-odds gap → shift all predictions → sigmoid back to PD
+
+monitoring.py  (standalone / ongoing)
+  ├─ calculate_ks()     → model discrimination
+  ├─ calculate_psi()    → population drift
+  └─ lender_metrics()   → segment-level performance</code></pre>
+
+<hr>
+<p style="color:#888; font-size:9pt; text-align:center;">Credit Scoring Framework — Codebase Walkthrough &nbsp;|&nbsp; Generated 2026-03-19</p>
+
+</body>
+</html>
