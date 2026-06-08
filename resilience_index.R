@@ -10,27 +10,39 @@ ks_static_deciles <- function(df,
                               train_label = "train",
                               n_bins      = 10) {
 
-  # 1. BUILD DECILE BREAKS ON TRAIN ONLY  (static cuts)
+  # 1. BREAKS FROM TRAIN
   train_scores <- df %>%
     dplyr::filter(.data[[segment_col]] == train_label) %>%
     dplyr::pull(.data[[score_col]])
 
   if (length(train_scores) == 0) {
-    stop("No rows found for train_label = '", train_label, "' in column '", segment_col, "'.")
+    stop("No rows found for train_label = '", train_label, "'.")
   }
 
   breaks <- quantile(train_scores,
                      probs = seq(0, 1, length.out = n_bins + 1),
                      na.rm = TRUE) %>% unname()
+  breaks[1]              <- -Inf
+  breaks[length(breaks)] <-  Inf
 
-  # Open the tails so test / oot scores outside the train range still bin cleanly
-  breaks[1]               <- -Inf
-  breaks[length(breaks)]  <-  Inf
+  # 2. Build a lookup of "decile -> TRAIN range" (the canonical bin definition)
+  train_range <- tibble::tibble(
+    decile      = 1:n_bins,
+    lower_break = breaks[1:n_bins],
+    upper_break = breaks[2:(n_bins + 1)]
+  ) %>%
+    dplyr::mutate(
+      train_range = sprintf("(%s, %s]",
+                            ifelse(is.infinite(lower_break), "-Inf",
+                                   formatC(lower_break, format = "f", digits = 4)),
+                            ifelse(is.infinite(upper_break), "Inf",
+                                   formatC(upper_break, format = "f", digits = 4)))
+    )
 
-  cat("Decile breaks built from TRAIN scores (static cuts applied to all segments):\n")
-  print(setNames(breaks, paste0("p", seq(0, 100, by = 10))))
+  cat("Decile breaks built from TRAIN scores:\n")
+  print(train_range)
 
-  # 2. APPLY THE SAME BREAKS TO EVERY SEGMENT
+  # 3. APPLY BREAKS
   df <- df %>%
     dplyr::mutate(
       decile = cut(.data[[score_col]],
@@ -40,20 +52,24 @@ ks_static_deciles <- function(df,
                    right          = TRUE) %>% as.integer()
     )
 
-  # 3. PER-SEGMENT, PER-DECILE STATS
+  # 4. AGGREGATE — now also capture the ACTUAL min/max observed in each
+  #    (decile x segment) cell so you can see TRAIN's canonical bin AND
+  #    how each other segment's scores spread within those same bins
   agg <- df %>%
     dplyr::group_by(.data[[segment_col]], decile) %>%
     dplyr::summarise(
-      n              = dplyr::n(),
-      events         = sum(.data[[target_col]] == 1, na.rm = TRUE),
-      nonevents      = sum(.data[[target_col]] == 0, na.rm = TRUE),
-      bad_rate       = mean(.data[[target_col]], na.rm = TRUE),
-      avg_score      = mean(.data[[score_col]], na.rm = TRUE),
-      .groups        = "drop"
+      n                = dplyr::n(),
+      events           = sum(.data[[target_col]] == 1, na.rm = TRUE),
+      nonevents        = sum(.data[[target_col]] == 0, na.rm = TRUE),
+      bad_rate         = mean(.data[[target_col]], na.rm = TRUE),
+      score_min        = min(.data[[score_col]], na.rm = TRUE),
+      score_max        = max(.data[[score_col]], na.rm = TRUE),
+      score_avg        = mean(.data[[score_col]], na.rm = TRUE),
+      .groups          = "drop"
     ) %>%
-    dplyr::arrange(.data[[segment_col]], dplyr::desc(decile))   # 10 first = highest risk
+    dplyr::arrange(.data[[segment_col]], dplyr::desc(decile))
 
-  # 4. CUMULATIVE PERCENTS + KS, COMPUTED PER SEGMENT
+  # 5. CUMULATIVE % AND KS
   agg <- agg %>%
     dplyr::group_by(.data[[segment_col]]) %>%
     dplyr::mutate(
@@ -66,42 +82,49 @@ ks_static_deciles <- function(df,
     ) %>%
     dplyr::ungroup()
 
-  # 5. SUMMARY (one row per segment)
+  # 6. ATTACH TRAIN BIN RANGE + OBSERVED RANGE FOR EACH ROW
+  agg <- agg %>%
+    dplyr::left_join(train_range %>% dplyr::select(decile, train_range),
+                     by = "decile") %>%
+    dplyr::mutate(
+      observed_range = sprintf("[%s, %s]",
+                               formatC(score_min, format = "f", digits = 4),
+                               formatC(score_max, format = "f", digits = 4))
+    ) %>%
+    # Reorder columns so the ranges are easy to read
+    dplyr::select(dplyr::all_of(segment_col), decile,
+                  train_range, observed_range,
+                  n, pop_pct, events, nonevents, bad_rate,
+                  score_min, score_max, score_avg,
+                  cum_event_pct, cum_nonevent_pct, ks)
+
+  # 7. SUMMARY
   summary_ks <- agg %>%
     dplyr::group_by(.data[[segment_col]]) %>%
     dplyr::summarise(
-      ks_max         = max(ks),
-      ks_peak_decile = decile[which.max(ks)],
-      total_events   = sum(events),
-      total_n        = sum(n),
-      event_rate     = total_events / total_n,
-      .groups        = "drop"
+      ks_max          = max(ks),
+      ks_peak_decile  = decile[which.max(ks)],
+      total_events    = sum(events),
+      total_n         = sum(n),
+      event_rate      = total_events / total_n,
+      .groups         = "drop"
     )
 
-  list(detail = agg, summary = summary_ks, breaks = breaks)
+  list(detail = agg, summary = summary_ks, train_range = train_range,
+       breaks = breaks)
 }
 
 
 # ---------- Usage ----------
 res <- ks_static_deciles(
   df          = scored_card,
-  score_col   = "combined_risk",        # or risk_index_baseline / resilience_index_baseline
+  score_col   = "combined_risk",
   target_col  = "downgrade_target",
   segment_col = "dev_oot_flag",
-  train_label = "train",                # change if your train flag is "TRAIN" or "Train"
+  train_label = "train",
   n_bins      = 10
 )
 
 print(res$summary)
-print(res$detail, n = 40)
-
-# KS curve across deciles, one line per segment
-ggplot(res$detail, aes(x = decile, y = ks, colour = dev_oot_flag)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  scale_x_reverse(breaks = 1:10) +
-  labs(title = "KS by decile (static deciles from TRAIN)",
-       x = "Decile (10 = highest combined_risk)",
-       y = "KS") +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom")
+print(res$detail, n = 40, width = Inf)
+print(res$train_range)
